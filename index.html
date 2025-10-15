@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Audio Translator</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container" id="app-container">
+        <h1>Audio Translator</h1>
+
+        <details id="model-details-panel">
+            <summary>
+                Translation Model
+                <span id="selected-model-display" class="selected-model-display"></span>
+            </summary>
+            <div class="form-group">
+                <div id="model-selection-container">
+                    <button id="model-select-btn">Select Model</button>
+                    <span id="model-status"></span>
+                </div>
+                <div id="gpu-status"></div>
+            </div>
+        </details>
+
+        <div class="file-input-container">
+            <label class="file-label">Select Audio File</label>
+            <div id="file-display" style="display: none;"></div>
+        </div>
+
+        <div class="form-group">
+            <label for="source-lang">Source Language:</label>
+            <select id="source-lang">
+                <option value="">--Please choose an option--</option>
+                <option value="en">English</option>
+                <option value="es">Spanish</option>
+                <option value="fr">French</option>
+                <option value="it">Italian</option>
+            </select>
+        </div>
+
+        <div class="form-group">
+            <label for="dest-lang">Destination Language:</label>
+            <select id="dest-lang">
+                <option value="">--Please choose an option--</option>
+                <option value="en">English</option>
+                <option value="es">Spanish</option>
+                <option value="fr">French</option>
+                <option value="it">Italian</option>
+            </select>
+        </div>
+
+        <button id="submit-btn" disabled>Translate</button>
+
+        <div id="loading-spinner" class="spinner-container" style="display: none;">
+            <div class="spinner"></div>
+        </div>
+        
+        <div id="output-container" class="output-container"></div>
+    </div>
+    <script src="./renderer.js"></script>
+</body>
+</html>

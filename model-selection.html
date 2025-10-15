@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Select a Model</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body id="model-selection-body">
+    <div id="model-list-container">
+        <h2>Select a Translation Model</h2>
+        <div id="model-list"></div>
+        <p class="intro-text">Larger models are more accurate but require more powerful hardware. The color-coding on the left indicates the required hardware level.</p>
+        <div id="warning-message" class="warning-message" style="display: none;"></div>
+        <div id="download-progress-container" style="display: none;">
+            <p id="download-status"></p>
+            <div class="progress-bar-container">
+                <div id="progress-bar" class="progress-bar-fill"></div>
+            </div>
+        </div>
+        <div class="model-selection-buttons">
+            <button id="select-btn">Select</button>
+            <button id="cancel-btn">Cancel</button>
+        </div>
+    </div>
+    <script src="./model-selection.js"></script>
+</body>
+</html>

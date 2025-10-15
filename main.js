@@ -13,13 +13,15 @@ let lastSelectedFilePath = null;
 // --- Global Error Handling ---
 process.on('uncaughtException', (error) => {
     console.error('Unhandled Exception:', error);
-    dialog.showErrorBox('Unhandled Exception', error.message);
+    const errorMessage = error.stack || error.message || 'An unknown error occurred';
+    dialog.showErrorBox('Unhandled Exception', errorMessage);
     app.quit();
 });
 
 process.on('unhandledRejection', (reason) => {
     console.error('Unhandled Rejection:', reason);
-    dialog.showErrorBox('Unhandled Rejection', String(reason));
+    const reasonMessage = reason.stack || String(reason) || 'An unknown rejection occurred';
+    dialog.showErrorBox('Unhandled Rejection', reasonMessage);
     app.quit();
 });
 
@@ -143,11 +145,11 @@ ipcMain.on('translate-audio', async (event, { sourceLang, destLang, model }) => 
             inputLang: sourceLang,
             outputLang: destLang,
             outputDir: outputDir,
-            model: model || 'base'
+            model: model || 'base',
+            webContents: event.sender
         });
 
-        const results = await translator.process();
-        event.sender.send('translation-complete', results.outputFilePath);
+        translator.process();
     } catch (error) {
         console.error('Translation failed:', error);
         event.sender.send('translation-error', error.message);

@@ -4,7 +4,6 @@ const os = require('os');
 const { v4: uuidv4 } = require('uuid');
 const { exec } = require('child_process');
 const ffmpeg = require('fluent-ffmpeg');
-const { translate } = require('@vitalets/google-translate-api');
 const axios = require('axios');
 const { getAllAudioUrls } = require('google-tts-api');
 const TranslationResults = require('./translation-results');
@@ -32,6 +31,9 @@ class AudioTranslator {
         if (!options.inputFile || !options.inputLang || !options.outputLang || !options.outputDir) {
             throw new Error("Missing required options: inputFile, inputLang, outputLang, and outputDir must be provided.");
         }
+        if (!options.webContents) {
+            throw new Error("Missing required option: webContents must be provided.");
+        }
         this.inputFile = options.inputFile;
         this.inputLang = LANGUAGES[options.inputLang];
         this.outputLang = LANGUAGES[options.outputLang];
@@ -39,11 +41,11 @@ class AudioTranslator {
         this.model = options.model || 'base';
         this.outputName = options.outputName || `translation_${uuidv4()}`;
         this.outputFilePath = path.join(this.outputDir, `${this.outputName}.mp3`);
+        this.webContents = options.webContents;
     }
 
     /**
      * Executes the entire audio processing workflow and returns the results.
-     * @returns {Promise<TranslationResults>} An object containing the results.
      */
     async process() {
         console.log(`Starting audio processing for: ${this.inputFile}`);
@@ -56,20 +58,28 @@ class AudioTranslator {
                 throw new Error("Transcription failed to produce any text.");
             }
             console.log("\nTranscribed Text:", originalText);
+            this.webContents.send('translation-progress', {
+                type: 'transcription',
+                data: originalText
+            });
 
             const translatedText = await this._translate(originalText);
             console.log(`\nTranslated Text (${this.outputLang.translator_code}):`, translatedText);
+            this.webContents.send('translation-progress', {
+                type: 'translation',
+                data: translatedText
+            });
 
             await this._synthesizeSpeech(translatedText);
             await this._speedUpAudio();
             this._showInExplorer();
-            
+
             console.log(`\nSuccessfully created file at: ${this.outputFilePath}`);
-            return new TranslationResults(originalText, translatedText, this.outputFilePath);
+            this.webContents.send('translation-complete', this.outputFilePath);
 
         } catch (error) {
             console.error("\n--- An error occurred during the process ---", error);
-            throw error; // Propagate the error to be handled by the UI
+            this.webContents.send('translation-error', error.message);
         } finally {
             if (tempWavFile && tempWavFile !== this.inputFile) {
                 await fs.unlink(tempWavFile).catch(e => console.error("Error removing temp file:", e));
@@ -93,47 +103,91 @@ class AudioTranslator {
 
     _transcribe(filePath) {
         return new Promise((resolve, reject) => {
-            console.log(`Starting transcription worker for model: ${this.model}...`);
+            try {
+                console.log(`Starting transcription worker for model: ${this.model}...`);
 
-            const worker = new Worker(path.join(__dirname, 'transcription.worker.js'));
+                const worker = new Worker(path.join(__dirname, 'transcription.worker.js'), {
+                    env: {
+                        NODE_OPTIONS: '--max-old-space-size=8192'
+                    }
+                });
 
-            worker.on('message', (message) => {
-                if (message.status === 'completed') {
-                    resolve(message.output);
-                } else {
-                    reject(new Error(`Transcription worker error: ${message.output}`));
-                }
-                worker.terminate();
-            });
+                worker.on('message', (message) => {
+                    if (message.status === 'completed') {
+                        resolve(message.output);
+                    } else {
+                        reject(new Error(`Transcription worker error: ${message.output}`));
+                    }
+                    worker.terminate();
+                });
 
-            worker.on('error', (err) => {
-                reject(err);
-                worker.terminate();
-            });
+                worker.on('error', (err) => {
+                    reject(err);
+                    worker.terminate();
+                });
 
-            worker.on('exit', (code) => {
-                if (code !== 0) {
-                    reject(new Error(`Worker stopped with exit code ${code}`));
-                }
-            });
+                worker.on('exit', (code) => {
+                    if (code !== 0) {
+                        reject(new Error(`Worker stopped with exit code ${code}`));
+                    }
+                });
 
-            worker.postMessage({
-                filePath,
-                model: this.model,
-                inputLang: this.inputLang.translator_code
-            });
+                worker.postMessage({
+                    filePath,
+                    model: this.model,
+                    inputLang: this.inputLang.translator_code
+                });
+            } catch (error) {
+                reject(error);
+            }
         });
     }
 
-    async _translate(text) {
-        console.log("Translating text...");
-        const { text: translated } = await translate(text, { to: this.outputLang.translator_code });
-        return translated;
+    _translate(text) {
+        return new Promise((resolve, reject) => {
+            try {
+                console.log(`Starting translation worker...`);
+    
+                const worker = new Worker(path.join(__dirname, 'translation.worker.js'), {
+                    env: {
+                        NODE_OPTIONS: '--max-old-space-size=8192'
+                    }
+                });
+    
+                worker.on('message', (message) => {
+                    if (message.status === 'completed') {
+                        resolve(message.output);
+                    } else {
+                        reject(new Error(`Translation worker error: ${message.output}`));
+                    }
+                    worker.terminate();
+                });
+    
+                worker.on('error', (err) => {
+                    reject(err);
+                    worker.terminate();
+                });
+    
+                worker.on('exit', (code) => {
+                    if (code !== 0) {
+                        reject(new Error(`Worker stopped with exit code ${code}`));
+                    }
+                });
+    
+                worker.postMessage({
+                    text,
+                    inputLang: this.inputLang.translator_code,
+                    outputLang: this.outputLang.translator_code,
+                });
+            } catch (error) {
+                reject(error);
+            }
+        });
     }
 
     async _synthesizeSpeech(text) {
         console.log("Generating audio from translated text...");
-        
+
         // Use getAllAudioUrls which splits the text into chunks and returns multiple URLs
         const audioUrls = getAllAudioUrls(text, {
             lang: this.outputLang.translator_code,
@@ -155,7 +209,7 @@ class AudioTranslator {
                 throw new Error('Failed to download audio chunks for speech synthesis.');
             }
         }
-        
+
         // Concatenate all buffers into a single buffer and write to the output file
         const combinedBuffer = Buffer.concat(audioBuffers);
         await fs.writeFile(this.outputFilePath, combinedBuffer);
@@ -176,8 +230,8 @@ class AudioTranslator {
     _showInExplorer() {
         const platform = os.platform();
         const command = platform === 'win32' ? `explorer /select,"${this.outputFilePath}"`
-                      : platform === 'darwin' ? `open -R "${this.outputFilePath}"`
-                      : `xdg-open "${this.outputDir}"`;
+            : platform === 'darwin' ? `open -R "${this.outputFilePath}"`
+                : `xdg-open "${this.outputDir}"`;
         exec(command, (err) => {
             if (err) console.error("Could not open file explorer:", err);
         });

@@ -5,6 +5,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   onFileSelected: (callback) => ipcRenderer.on('file-selected', (_event, value) => callback(value)),
   clearFile: () => ipcRenderer.send('clear-file'),
   translateAudio: (options) => ipcRenderer.send('translate-audio', options),
+  onTranslationProgress: (callback) => ipcRenderer.on('translation-progress', (event, data) => callback(data)),
   onTranslationComplete: (callback) => ipcRenderer.on('translation-complete', (event, outputPath) => callback(outputPath)),
   onTranslationError: (callback) => ipcRenderer.on('translation-error', (event, error) => callback(error)),
   openPlaybackWindow: (filePath) => ipcRenderer.send('open-playback-window', filePath),

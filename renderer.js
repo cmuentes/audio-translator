@@ -12,6 +12,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     const modelSelectBtn = document.getElementById('model-select-btn');
     const modelDetailsPanel = document.getElementById('model-details-panel');
     const selectedModelDisplay = document.getElementById('selected-model-display');
+    const transcriptionText = document.getElementById('transcription-text');
+    const translationText = document.getElementById('translation-text');
 
     let selectedFile = null;
     let selectedModel = null;
@@ -99,12 +101,22 @@ document.addEventListener('DOMContentLoaded', async () => {
         appContainer.classList.add('disabled');
         loadingSpinner.style.display = 'flex';
         outputContainer.innerHTML = '';
+        transcriptionText.textContent = '';
+        translationText.textContent = '';
 
         window.electronAPI.translateAudio({
             sourceLang: sourceLang.value,
             destLang: destLang.value,
             model: selectedModel
         });
+    });
+
+    window.electronAPI.onTranslationProgress((event) => {
+        if (event.type === 'transcription') {
+            transcriptionText.textContent = event.data;
+        } else if (event.type === 'translation') {
+            translationText.textContent = event.data;
+        }
     });
 
     window.electronAPI.onTranslationComplete((outputPath) => {
@@ -132,6 +144,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     window.electronAPI.onTranslationError((error) => {
         appContainer.classList.remove('disabled');
         loadingSpinner.style.display = 'none';
-        outputContainer.innerHTML = `<span style="color: red;">Error: ${errorMessage}</span>`;
+        outputContainer.innerHTML = `<span style="color: red;">Error: ${error}</span>`;
     });
 });

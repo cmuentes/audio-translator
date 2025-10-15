@@ -1,7 +1,5 @@
 const { parentPort } = require('worker_threads');
 const { pipeline } = require('@xenova/transformers');
-const { WaveFile } = require('wavefile');
-const fs = require('fs').promises;
 
 process.on('uncaughtException', (err, origin) => {
     parentPort.postMessage({ status: 'error', output: `Worker uncaught exception: ${err.stack || err.message}` });
@@ -12,30 +10,26 @@ process.on('unhandledRejection', (reason, promise) => {
     parentPort.postMessage({ status: 'error', output: `Worker unhandled rejection: ${reasonMessage}` });
 });
 
-async function transcribe({ filePath, model, inputLang }) {
+async function translate({ text, outputLang, inputLang }) {
     try {
-        const transcriber = await pipeline('automatic-speech-recognition', `Xenova/whisper-${model}`, {
+        const translator = await pipeline('translation', 'Xenova/opus-mt-es-en', {
             device: 'cpu',
             quantized: false
         });
-        
-        const wav = new WaveFile(await fs.readFile(filePath));
-        wav.toBitDepth('32f');
-        const audioData = wav.getSamples();
 
-        const output = await transcriber(audioData, {
-            language: inputLang,
-            task: 'transcribe'
+        const output = await translator(text, {
+            tgt_lang: outputLang,
+            src_lang: inputLang,
         });
         
-        await transcriber.dispose();
+        await translator.dispose();
 
-        parentPort.postMessage({ status: 'completed', output: output.text });
+        parentPort.postMessage({ status: 'completed', output: output[0].translation_text });
     } catch (error) {
         parentPort.postMessage({ status: 'error', output: error.stack || error.message });
     }
 }
 
 parentPort.on('message', (message) => {
-    transcribe(message);
+    translate(message);
 });

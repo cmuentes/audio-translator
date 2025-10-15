@@ -334,3 +334,27 @@ button:hover:not(:disabled) {
     width: 100%;
     margin-top: 20px;
 }
+
+.text-container {
+    margin-top: 20px;
+    padding: 15px;
+    background-color: #f9f9f9;
+    border: 1px solid #ddd;
+    border-radius: 5px;
+}
+
+.text-container h2 {
+    margin-top: 0;
+    font-size: 1.1em;
+    color: #333;
+    border-bottom: 1px solid #eee;
+    padding-bottom: 5px;
+    margin-bottom: 10px;
+}
+
+.text-container p {
+    margin: 0;
+    padding: 5px 0;
+    color: #555;
+    white-space: pre-wrap; /* Allows text to wrap and preserves whitespace */
+}

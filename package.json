@@ -7,13 +7,14 @@
     "test": "echo \"Error: no test specified\" && exit 1",
     "start": "electron --js-flags=\"--max-old-space-size=8192\" .",
     "rebuild": "npx @electron/rebuild",
-    "dist": "electron-builder"
+    "dist": "electron-builder",
+    "postinstall": "electron-builder install-app-deps"
   },
   "author": "Carlos J. Muentes",
   "license": "ISC",
   "devDependencies": {
-    "@electron/rebuild": "^3.6.0",
-    "electron": "^31.2.1",
+    "@electron/rebuild": "^3.4.0",
+    "electron": "28.0.0",
     "electron-builder": "^26.0.12"
   },
   "dependencies": {
@@ -32,7 +33,7 @@
   },
   "build": {
     "appId": "com.carlosjmuentes.translator",
-    "productName": "Translator",
+    "productName": "Gary Translator",
     "files": [
       "main.js",
       "preload.js",
@@ -46,10 +47,12 @@
       "bin/**/*"
     ],
     "mac": {
-      "target": "dmg"
+      "target": "dmg",
+      "icon": "src/assets/gary-logo.png"
     },
     "win": {
-      "target": "nsis"
+      "target": "nsis",
+      "icon": "src/assets/gary-logo.png"
     }
   }
 }

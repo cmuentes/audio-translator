@@ -71,6 +71,7 @@ function createMainWindow() {
   mainWindow = new BrowserWindow({
     width: 800,
     height: 900,
+    icon: path.join(__dirname, 'src/assets/gary-logo.png'),
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
@@ -104,6 +105,10 @@ function createPlaybackWindow(filePath) {
 app.whenReady().then(() => {
   startVoskServer();
   createMainWindow();
+  if (process.platform === 'darwin') {
+    app.setName('Gary Translator');
+    app.dock.setIcon(path.join(__dirname, 'src/assets/gary-logo.png'));
+  }
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createMainWindow();
   });

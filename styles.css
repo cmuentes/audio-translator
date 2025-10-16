@@ -1,12 +1,30 @@
+html {
+    box-sizing: border-box;
+}
+
+*, *:before, *:after {
+    box-sizing: inherit;
+}
+
 body {
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-    margin: 20px;
+    margin: 0;
     background-color: #f4f4f9;
     color: #333;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    height: 100vh;
+    padding: 20px;
+}
+
+.header {
+    position: absolute;
+    top: 0;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 100%;
+    max-width: 500px;
+    padding-top: -20px;
+    padding-right: 20px;
+    padding-bottom: 0;
+    padding-left: 20px;
 }
 
 #app-container {
@@ -16,6 +34,13 @@ body {
     box-shadow: 0 4px 6px rgba(0,0,0,0.1);
     width: 100%;
     max-width: 500px;
+    margin: 120px auto 40px;
+}
+
+#logo {
+    width: 100%;
+    height: auto;
+    display: block;
 }
 
 details {
@@ -31,11 +56,6 @@ summary {
     outline: none;
 }
 
-h1 {
-    text-align: center;
-    color: #444;
-}
-
 .form-group {
     margin-bottom: 20px;
 }
@@ -46,24 +66,42 @@ label {
     font-weight: bold;
 }
 
-select, button {
+select {
     width: 100%;
     padding: 10px;
     border-radius: 4px;
-    border: 1px solid #ddd;
+    border: 1px solid #1abc9c;
     font-size: 16px;
 }
 
 button {
-    background-color: #007bff;
-    color: white;
+    width: 100%;
+    padding: 10px;
+    border-radius: 4px;
     border: none;
+    font-size: 16px;
+    color: white;
     cursor: pointer;
     transition: background-color 0.3s;
 }
 
+.buttons-container {
+    display: flex;
+    gap: 10px;
+    width: 100%;
+    margin-top: 20px;
+}
+
+#submit-btn {
+    background-color: #3498db;
+}
+
+.button-secondary {
+    background-color: #9b59b6;
+}
+
 button:disabled {
-    background-color: #cccccc;
+    background-color: #ccc;
     cursor: not-allowed;
 }
 
@@ -74,7 +112,7 @@ button:hover:not(:disabled) {
 .file-label {
     display: inline-block;
     padding: 10px 15px;
-    background-color: #007bff;
+    background-color: #1abc9c;
     color: white;
     border-radius: 4px;
     cursor: pointer;
@@ -83,7 +121,7 @@ button:hover:not(:disabled) {
 }
 
 .file-label:hover {
-    background-color: #0056b3;
+    background-color: #16a085;
 }
 
 .file-display-container {
@@ -357,4 +395,8 @@ button:hover:not(:disabled) {
     padding: 5px 0;
     color: #555;
     white-space: pre-wrap; /* Allows text to wrap and preserves whitespace */
+}
+.greyed-out {
+    opacity: 0.2;
+    pointer-events: none;
 }

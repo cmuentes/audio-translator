@@ -2,13 +2,54 @@ const { app, BrowserWindow, ipcMain, shell, dialog } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const os = require('os');
-const { checkHardware, getCachedModels, downloadModel } = require('./src/translation/translation-utils');
 const AudioTranslator = require('./src/translation/translation-controller');
+const { spawn } = require('child_process');
+const isDev = require('electron-is-dev');
 
 let mainWindow;
-let modelSelectionWindow;
 let playbackWindow;
 let lastSelectedFilePath = null;
+let voskServerProcess = null;
+
+// --- Start Vosk Server ---
+function startVoskServer() {
+    const serverPath = path.join(__dirname, 'vosk-server.js');
+    
+    let nodePath;
+    if (isDev) {
+        nodePath = path.join(__dirname, 'bin', 'node');
+    } else {
+        nodePath = path.join(process.resourcesPath, 'bin', 'node');
+    }
+
+    if (!fs.existsSync(nodePath)) {
+        dialog.showErrorBox('Node.js Executable Not Found', `Could not find the required Node.js executable at: ${nodePath}`);
+        app.quit();
+        return;
+    }
+
+    voskServerProcess = spawn(nodePath, [serverPath]);
+
+    voskServerProcess.stdout.on('data', (data) => {
+        console.log(`Vosk Server: ${data}`);
+    });
+
+    voskServerProcess.stderr.on('data', (data) => {
+        console.log(`Vosk Server Log: ${data}`);
+    });
+
+    voskServerProcess.on('error', (err) => {
+        console.error('Failed to start Vosk Server:', err);
+    });
+
+    voskServerProcess.on('exit', (code, signal) => {
+        console.log(`Vosk Server process exited with code ${code}, signal ${signal}`);
+    });
+
+    voskServerProcess.on('close', (code) => {
+        console.log(`Vosk Server exited with code ${code}`);
+    });
+}
 
 // --- Global Error Handling ---
 process.on('uncaughtException', (error) => {
@@ -29,7 +70,7 @@ process.on('unhandledRejection', (reason) => {
 function createMainWindow() {
   mainWindow = new BrowserWindow({
     width: 800,
-    height: 600,
+    height: 900,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
@@ -59,25 +100,9 @@ function createPlaybackWindow(filePath) {
     playbackWindow.on('closed', () => playbackWindow = null);
 }
 
-function createModelSelectionWindow() {
-    modelSelectionWindow = new BrowserWindow({
-        width: 950,
-        height: 580,
-        title: 'Select a Model',
-        parent: mainWindow,
-        modal: true,
-        webPreferences: {
-            preload: path.join(__dirname, 'preload.js'),
-            contextIsolation: true,
-            enableRemoteModule: false,
-        },
-    });
-    modelSelectionWindow.loadFile('model-selection.html');
-    modelSelectionWindow.on('closed', () => modelSelectionWindow = null);
-}
-
 // --- App Lifecycle ---
 app.whenReady().then(() => {
+  startVoskServer();
   createMainWindow();
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createMainWindow();
@@ -88,24 +113,13 @@ app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit();
 });
 
+app.on('before-quit', () => {
+    if (voskServerProcess) {
+        voskServerProcess.kill();
+    }
+});
+
 // --- IPC Handlers ---
-ipcMain.handle('check-hardware', () => checkHardware());
-ipcMain.handle('get-cached-models', () => getCachedModels());
-ipcMain.handle('get-total-memory', () => os.totalmem());
-
-ipcMain.on('open-model-selection', () => createModelSelectionWindow());
-ipcMain.on('close-model-selection', () => modelSelectionWindow?.close());
-ipcMain.on('model-selected', (event, model) => {
-    mainWindow.webContents.send('model-chosen', model);
-    modelSelectionWindow?.close();
-});
-
-ipcMain.on('download-model', async (event, modelName) => {
-    await downloadModel(modelName, (progress) => {
-        modelSelectionWindow?.webContents.send('download-progress', { ...progress, model: modelName });
-    });
-});
-
 ipcMain.on('open-playback-window', (event, filePath) => createPlaybackWindow(filePath));
 ipcMain.on('close-playback-window', () => playbackWindow?.close());
 
@@ -130,7 +144,7 @@ ipcMain.on('clear-file', () => {
     lastSelectedFilePath = null;
 });
 
-ipcMain.on('translate-audio', async (event, { sourceLang, destLang, model }) => {
+ipcMain.on('translate-audio', async (event, { sourceLang, destLang }) => {
     if (!lastSelectedFilePath) {
         event.sender.send('translation-error', 'No file selected.');
         return;
@@ -145,7 +159,6 @@ ipcMain.on('translate-audio', async (event, { sourceLang, destLang, model }) => 
             inputLang: sourceLang,
             outputLang: destLang,
             outputDir: outputDir,
-            model: model || 'base',
             webContents: event.sender
         });
 

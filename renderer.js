@@ -7,55 +7,16 @@ document.addEventListener('DOMContentLoaded', async () => {
     const outputContainer = document.getElementById('output-container');
     const appContainer = document.getElementById('app-container');
     const fileLabel = document.querySelector('.file-label');
-    const gpuStatus = document.getElementById('gpu-status');
-    const modelStatus = document.getElementById('model-status');
-    const modelSelectBtn = document.getElementById('model-select-btn');
-    const modelDetailsPanel = document.getElementById('model-details-panel');
-    const selectedModelDisplay = document.getElementById('selected-model-display');
     const transcriptionText = document.getElementById('transcription-text');
     const translationText = document.getElementById('translation-text');
+    const resultsContainer = document.getElementById('results-container');
+    const resetBtn = document.getElementById('reset-btn');
 
-    let selectedFile = null;
-    let selectedModel = null;
-
-    // --- App Initialization ---
-    try {
-        const hasGpu = await window.electronAPI.checkHardware();
-        gpuStatus.textContent = hasGpu
-            ? 'GPU acceleration is available.'
-            : 'GPU acceleration not available. Translation will be slower.';
-        gpuStatus.style.color = hasGpu ? 'green' : 'orange';
-
-        const cachedModels = await window.electronAPI.getCachedModels();
-        if (cachedModels.length > 0) {
-            selectedModel = cachedModels[0]; // Default to the first cached model
-            modelStatus.textContent = `Using ${selectedModel}`;
-            selectedModelDisplay.textContent = `(${selectedModel})`;
-            modelDetailsPanel.open = false;
-        } else {
-            modelStatus.textContent = 'No local models found. Please select a model.';
-            modelDetailsPanel.open = true;
-        }
-    } catch (error) {
-        gpuStatus.textContent = 'Could not check for GPU acceleration.';
-        modelStatus.textContent = 'Could not retrieve cached models.';
-        console.error('Initialization error:', error);
-    }
+    resultsContainer.classList.add('greyed-out');
     
+    let selectedFile = null;
+
     validateForm();
-    // --- End App Initialization ---
-
-    modelSelectBtn.addEventListener('click', () => {
-        window.electronAPI.openModelSelection();
-    });
-
-    window.electronAPI.onModelChosen((model) => {
-        selectedModel = model;
-        modelStatus.textContent = `Using ${selectedModel}`;
-        selectedModelDisplay.textContent = `(${selectedModel})`;
-        modelDetailsPanel.open = false;
-        validateForm();
-    });
 
     fileLabel.addEventListener('click', () => {
         window.electronAPI.openFileDialog();
@@ -83,6 +44,19 @@ document.addEventListener('DOMContentLoaded', async () => {
         validateForm();
     });
 
+    resetBtn.addEventListener('click', () => {
+        selectedFile = null;
+        window.electronAPI.clearFile();
+        fileDisplay.style.display = 'none';
+        fileDisplay.innerHTML = '';
+        fileLabel.textContent = 'Select Audio File';
+        transcriptionText.textContent = '';
+        translationText.textContent = '';
+        outputContainer.innerHTML = '';
+        resultsContainer.classList.add('greyed-out');
+        validateForm();
+    });
+
     sourceLang.addEventListener('change', validateForm);
     destLang.addEventListener('change', validateForm);
 
@@ -90,12 +64,20 @@ document.addEventListener('DOMContentLoaded', async () => {
         const isFileSelected = selectedFile !== null;
         const isSourceLangSelected = sourceLang.value !== '';
         const isDestLangSelected = destLang.value !== '';
-        const isModelSelected = selectedModel !== null;
-        submitBtn.disabled = !(isFileSelected && isSourceLangSelected && isDestLangSelected && isModelSelected);
+        const isFormValid = isFileSelected && isSourceLangSelected && isDestLangSelected;
+        
+        submitBtn.disabled = !isFormValid;
+        resetBtn.disabled = !isFormValid;
     }
 
     submitBtn.addEventListener('click', () => {
         if (!selectedFile) return;
+
+        const sourceLanguage = sourceLang.value;
+        if (sourceLanguage === 'fr' || sourceLanguage === 'it') {
+            alert('Translation for French and Italian is coming soon!');
+            return;
+        }
 
         // Disable UI and show spinner
         appContainer.classList.add('disabled');
@@ -103,11 +85,11 @@ document.addEventListener('DOMContentLoaded', async () => {
         outputContainer.innerHTML = '';
         transcriptionText.textContent = '';
         translationText.textContent = '';
+        resultsContainer.classList.remove('greyed-out');
 
         window.electronAPI.translateAudio({
             sourceLang: sourceLang.value,
             destLang: destLang.value,
-            model: selectedModel
         });
     });
 

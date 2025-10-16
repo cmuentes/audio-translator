@@ -1,4 +1,5 @@
-const fs = require('fs').promises;
+const fs = require('fs');
+const { promises: fsPromises } = require('fs');
 const path = require('path');
 const os = require('os');
 const { v4: uuidv4 } = require('uuid');
@@ -8,6 +9,7 @@ const axios = require('axios');
 const { getAllAudioUrls } = require('google-tts-api');
 const TranslationResults = require('./translation-results');
 const { Worker } = require('worker_threads');
+const FormData = require('form-data');
 
 const LANGUAGES = {
     'en': { sr_code: 'en-US', translator_code: 'en' },
@@ -24,7 +26,7 @@ class AudioTranslator {
      * @param {string} options.inputLang - Source language (e.g., 'english').
      * @param {string} options.outputLang - Destination language (e.g., 'spanish').
      * @param {string} options.outputDir - Directory to save the translated file.
-     * @param {string} [options.model='base'] - Whisper model ('tiny', 'base', 'small', 'medium', 'large').
+     * @param {string} [options.modelPath] - Path to the Vosk model.
      * @param {string} [options.outputName] - Optional output filename.
      */
     constructor(options) {
@@ -38,7 +40,6 @@ class AudioTranslator {
         this.inputLang = LANGUAGES[options.inputLang];
         this.outputLang = LANGUAGES[options.outputLang];
         this.outputDir = options.outputDir;
-        this.model = options.model || 'base';
         this.outputName = options.outputName || `translation_${uuidv4()}`;
         this.outputFilePath = path.join(this.outputDir, `${this.outputName}.mp3`);
         this.webContents = options.webContents;
@@ -72,7 +73,6 @@ class AudioTranslator {
 
             await this._synthesizeSpeech(translatedText);
             await this._speedUpAudio();
-            this._showInExplorer();
 
             console.log(`\nSuccessfully created file at: ${this.outputFilePath}`);
             this.webContents.send('translation-complete', this.outputFilePath);
@@ -82,7 +82,7 @@ class AudioTranslator {
             this.webContents.send('translation-error', error.message);
         } finally {
             if (tempWavFile && tempWavFile !== this.inputFile) {
-                await fs.unlink(tempWavFile).catch(e => console.error("Error removing temp file:", e));
+                await fsPromises.unlink(tempWavFile).catch(e => console.error("Error removing temp file:", e));
             }
         }
     }
@@ -101,46 +101,35 @@ class AudioTranslator {
         });
     }
 
-    _transcribe(filePath) {
-        return new Promise((resolve, reject) => {
-            try {
-                console.log(`Starting transcription worker for model: ${this.model}...`);
-
-                const worker = new Worker(path.join(__dirname, 'transcription.worker.js'), {
-                    env: {
-                        NODE_OPTIONS: '--max-old-space-size=8192'
-                    }
-                });
-
-                worker.on('message', (message) => {
-                    if (message.status === 'completed') {
-                        resolve(message.output);
-                    } else {
-                        reject(new Error(`Transcription worker error: ${message.output}`));
-                    }
-                    worker.terminate();
-                });
-
-                worker.on('error', (err) => {
-                    reject(err);
-                    worker.terminate();
-                });
-
-                worker.on('exit', (code) => {
-                    if (code !== 0) {
-                        reject(new Error(`Worker stopped with exit code ${code}`));
-                    }
-                });
-
-                worker.postMessage({
-                    filePath,
-                    model: this.model,
-                    inputLang: this.inputLang.translator_code
-                });
-            } catch (error) {
-                reject(error);
+    async _transcribe(filePath) {
+        try {
+            console.log(`Sending audio file to Vosk server for transcription...`);
+    
+            const form = new FormData();
+            form.append('audio', fs.createReadStream(filePath));
+            form.append('lang', this.inputLang.translator_code);
+    
+            const response = await axios.post('http://localhost:3000/transcribe', form, {
+                headers: form.getHeaders(),
+            });
+    
+            if (response.data && response.data.transcription) {
+                return response.data.transcription;
+            } else {
+                throw new Error('Transcription failed: Invalid response from server.');
             }
-        });
+        } catch (error) {
+            if (error.response) {
+                console.error('Transcription server error:', error.response.data);
+                throw new Error(`Transcription server error: ${error.response.data.error || 'Unknown error'}`);
+            } else if (error.request) {
+                console.error('Transcription server did not respond:', error.request);
+                throw new Error('Transcription server did not respond. Is it running?');
+            } else {
+                console.error('Error setting up transcription request:', error.message);
+                throw new Error(`Error setting up transcription request: ${error.message}`);
+            }
+        }
     }
 
     _translate(text) {
@@ -212,7 +201,7 @@ class AudioTranslator {
 
         // Concatenate all buffers into a single buffer and write to the output file
         const combinedBuffer = Buffer.concat(audioBuffers);
-        await fs.writeFile(this.outputFilePath, combinedBuffer);
+        await fsPromises.writeFile(this.outputFilePath, combinedBuffer);
     }
 
     _speedUpAudio() {
@@ -222,18 +211,8 @@ class AudioTranslator {
             ffmpeg(this.outputFilePath)
                 .audioFilter('atempo=1.25')
                 .on('error', (err) => reject(new Error(`FFmpeg speed-up error: ${err.message}`)))
-                .on('end', () => fs.rename(tempPath, this.outputFilePath).then(resolve).catch(reject))
+                .on('end', () => fsPromises.rename(tempPath, this.outputFilePath).then(resolve).catch(reject))
                 .save(tempPath);
-        });
-    }
-
-    _showInExplorer() {
-        const platform = os.platform();
-        const command = platform === 'win32' ? `explorer /select,"${this.outputFilePath}"`
-            : platform === 'darwin' ? `open -R "${this.outputFilePath}"`
-                : `xdg-open "${this.outputDir}"`;
-        exec(command, (err) => {
-            if (err) console.error("Could not open file explorer:", err);
         });
     }
 }
@@ -245,7 +224,6 @@ async function main() {
         inputLang: 'english',
         outputLang: 'french',
         outputDir: 'C:\\Users\\YourUser\\Desktop', // <-- CHANGE THIS
-        model: 'tiny', // User selects: 'tiny', 'base', 'small', 'medium', 'large'
     };
     try {
         const isAccelerated = await AudioTranslator.checkHardware();

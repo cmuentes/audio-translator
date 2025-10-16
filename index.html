@@ -6,23 +6,10 @@
     <link rel="stylesheet" href="styles.css">
 </head>
 <body>
+    <div class="header">
+        <img src="src/assets/gary-logo-horizontal.png" id="logo" alt="Logo">
+    </div>
     <div class="container" id="app-container">
-        <h1>Audio Translator</h1>
-
-        <details id="model-details-panel">
-            <summary>
-                Translation Model
-                <span id="selected-model-display" class="selected-model-display"></span>
-            </summary>
-            <div class="form-group">
-                <div id="model-selection-container">
-                    <button id="model-select-btn">Select Model</button>
-                    <span id="model-status"></span>
-                </div>
-                <div id="gpu-status"></div>
-            </div>
-        </details>
-
         <div class="file-input-container">
             <label class="file-label">Select Audio File</label>
             <div id="file-display" style="display: none;"></div>
@@ -50,18 +37,23 @@
             </select>
         </div>
 
-        <button id="submit-btn" disabled>Translate</button>
+        <div class="buttons-container">
+            <button id="submit-btn" disabled>Translate</button>
+            <button id="reset-btn" class="button-secondary">Reset</button>
+        </div>
 
         <div id="loading-spinner" class="spinner-container" style="display: none;">
             <div class="spinner"></div>
         </div>
         
-        <div id="output-container" class="output-container"></div>
-        <div class="text-container">
-            <h2>Transcription</h2>
-            <p id="transcription-text"></p>
-            <h2>Translation</h2>
-            <p id="translation-text"></p>
+        <div id="results-container">
+            <div id="output-container" class="output-container"></div>
+            <div class="text-container">
+                <h2>Transcription</h2>
+                <p id="transcription-text"></p>
+                <h2>Translation</h2>
+                <p id="translation-text"></p>
+            </div>
         </div>
     </div>
     <script src="./renderer.js"></script>
